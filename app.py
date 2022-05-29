@@ -1,88 +1,94 @@
-import os
-import threading as th
-import requests 
-import json
-from time import *
+import os, requests, sys, time
+from random import shuffle
 import pyinputplus as pyip
+from supabase import create_client, Client
 
 supabase_url = "https://hqatoyyncrwdojrhwygi.supabase.co"
 supabase_key = os.getenv("SUPABASE_KEY")
 
-def get_questions():
+client: Client = create_client(supabase_url, supabase_key)
+
+def get_questions() -> dict:
     res = requests.get("https://opentdb.com/api.php?amount=10&type=multiple")
     if res.status_code != 200:
-        return res.json
+        return res.json()
     questions = res.json()
     return questions
 
 
-def new_game():
+answer_keys = ["a", "b", "c", "d"]
 
-    guesses = []
-    question_num = 1
-    score = 0
+def new_game(score: int) -> int:
 
-    def sctn():
-        pass
-    for key in questions:
+    questions = get_questions()
+    questions = questions['results']
+
+    for question in questions:
+        now = time.time()
         print("-------------------------")
-        print(key)
-        answers = questions[key]['incorrect_answers']
+        print(question["question"])
+        answers: list = question['incorrect_answers']
+        answers.append(question['correct_answer'])
         
-        #answers = questions['incorrect_answers']
-        for i in options[question_num-1]:
-            print(i)
-        question_num += 1
-        S = th.Timer(5.0, sctn)
-        S.start()
-        guess = pyip.inputMenu(['A', 'B', 'C'])
-        guess = guess.upper()
-        guesses.append(guess)
-        if questions.get(key) == guess and S.is_alive():
+        shuffle(answers)
+
+        answersDict = {
+            "a": answers[0],
+            "b": answers[1],
+            "c": answers[2],
+            "d": answers[3],
+        }
+
+        for key in answersDict:
+            print("{})\t{}".format(key, answersDict[key]))
+
+        guess = pyip.inputMenu(answer_keys).lower()
+
+        answer_given_at = time.time()
+
+        if question['correct_answer'] == answersDict[guess] and answer_given_at - now <= 20:
             score += 1
+        elif question['correct_answer'] == answersDict[guess]:
+            print("you answered correct, but exceeded the time limit - you will get no points!")
         else:
-            score -= 1
-        S.cancel()
-    if score < 0:
-        result = 0
-    else:
-        result = score
-    print(f"Score: {result}")
+            print("you exceeded the time limit - you will get no points!")
+    print(f"Score: {score}/10")
+    return score
 
 
-# -------------------------
-def play_again():
+def play_again() -> bool:
 
     response = pyip.inputYesNo("Do you want to play again? (yes or no): ")
     response = response.upper()
 
-    if response == "YES":
-        return True
-    else:
-        return False
-# -------------------------
+    return response == "YES"
 
 
-questions = get_questions()
-questions = questions['results']
+gamertag = pyip.inputStr("Please enter your gamertag:\t")
 
-options1 = [["A. Guido van Rossum", "B. Elon Musk", "C. Bill Gates"],
-           ["A. 1989", "B. 1991", "C. 2000"],
-           ["A. Lonely Island", "B. Smosh", "C. Monty Python"],
-           ["A. True", "B. False", "C. sometimes"],
-           ["A. Pacific Ocean", "B. Atlantic Ocean", "C. Indian Ocean"],
-           ["A. A flow of water", "B. A flow of air", "C. A flow of electrons"],
-           ["A. Agoraphobia", "B. Aerophobia", "C. Acrophobia"],
-           ["A. Stairway to Heaven", "B. Wind of Change", "C. Dont Stop Me Now"],
-           ["A. 120 km/h", "B. 1,200 km/h", "C. 400 km/h"],
-           ["A. To measure the width of the tree",
-               "B. To count the rings on the trunk", "C. To count the number of leaves"]
-           ]
+if len(gamertag) == 0:
+    print("enter your gamertag!!!!!")
+    sys.exit(1)
 
-print(questions[1]['incorrect_answers'])
-#new_game()
+total_score = new_game(0)
 
-#while play_again():
-    #new_game()
 
-#print("Byeeeeee!")
+while play_again():
+    total_score = new_game(total_score)
+
+client.postgrest.from_("highscores").upsert({
+    "name": gamertag,
+    "score": total_score
+}).execute()
+
+res = client.postgrest.from_("highscores").select("*").execute()
+
+highscores: list = res.data
+
+highscores.sort(key=lambda x: x.get("score"), reverse=True)
+
+print("the current highscores are:")
+print()
+
+for score in highscores:
+    print("{}: {}".format(score["name"], score["score"]))
