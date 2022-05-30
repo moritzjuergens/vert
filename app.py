@@ -5,7 +5,7 @@ from supabase import create_client, Client
 
 #Database Connection
 supabase_url = "https://hqatoyyncrwdojrhwygi.supabase.co"
-supabase_key = os.getenv("SUPABASE_KEY")
+supabase_key = "SUPABASE_KEY"
 client: Client = create_client(supabase_url, supabase_key)
 
 #Get Questions+Answers from Open Trivia Database

@@ -1,2 +1,3 @@
 requests
 pyinputplus
+supabase
