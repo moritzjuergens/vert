@@ -55,8 +55,13 @@ def new_game(score: int) -> int:
             score += 1
         elif question['correct_answer'] == answersDict[guess]:
             print("you answered correct, but exceeded the time limit - you will get no points!")
+            score -= 1
         else:
+            score -= 1
             print("you exceeded the time limit - you will get no points!")
+        if score < 0:
+            score = 0
+        
     print(f"Score: {score}/10")
     return score
 
